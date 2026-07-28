@@ -2,12 +2,15 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QDoubleSpinBox,
     QSpinBox, QComboBox, QPushButton, QLabel, QScrollArea
 )
+from PySide6.QtCore import Signal
 from core.noise_layers import NoiseLayer
 
 BLEND_MODES = ["add", "multiply", "subtract", "max", "min"]
 
 
 class NoiseLayerWidget(QGroupBox):
+    changed = Signal()
+
     def __init__(self, layer: NoiseLayer, on_remove, on_move_up, on_move_down):
         super().__init__("Noise Layer")
 
@@ -63,6 +66,11 @@ class NoiseLayerWidget(QGroupBox):
 
         self.setLayout(form)
 
+        for widget in (self.frequency, self.amplitude, self.persistence, self.lacunarity):
+            widget.valueChanged.connect(self.changed.emit)
+        self.octaves.valueChanged.connect(self.changed.emit)
+        self.blend_mode.currentTextChanged.connect(self.changed.emit)
+
     def to_layer(self) -> NoiseLayer:
         return NoiseLayer(
             frequency=self.frequency.value(),
@@ -75,6 +83,8 @@ class NoiseLayerWidget(QGroupBox):
 
 
 class NoisePanel(QWidget):
+    layers_changed = Signal()
+
     def __init__(self):
         super().__init__()
         self.layer_widgets: list[NoiseLayerWidget] = []
@@ -97,8 +107,10 @@ class NoisePanel(QWidget):
 
     def add_layer(self, layer: NoiseLayer):
         widget = NoiseLayerWidget(layer, self.remove_layer, self.move_up, self.move_down)
+        widget.changed.connect(self.layers_changed.emit)
         self.layer_widgets.append(widget)
         self.layers_container.addWidget(widget)
+        self.layers_changed.emit()
 
     def remove_layer(self, widget: NoiseLayerWidget):
         if len(self.layer_widgets) <= 1:
@@ -106,18 +118,21 @@ class NoisePanel(QWidget):
         self.layer_widgets.remove(widget)
         self.layers_container.removeWidget(widget)
         widget.deleteLater()
+        self.layers_changed.emit()
 
     def move_up(self, widget: NoiseLayerWidget):
         idx = self.layer_widgets.index(widget)
         if idx > 0:
             self.layer_widgets[idx - 1], self.layer_widgets[idx] = self.layer_widgets[idx], self.layer_widgets[idx - 1]
             self._refresh_layout()
+            self.layers_changed.emit()
 
     def move_down(self, widget: NoiseLayerWidget):
         idx = self.layer_widgets.index(widget)
         if idx < len(self.layer_widgets) - 1:
             self.layer_widgets[idx + 1], self.layer_widgets[idx] = self.layer_widgets[idx], self.layer_widgets[idx + 1]
             self._refresh_layout()
+            self.layers_changed.emit()
 
     def _refresh_layout(self):
         for widget in self.layer_widgets:
