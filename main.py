@@ -45,6 +45,8 @@ class MainWindow(QMainWindow):
         self.last_heightmap = None
         self.last_rgb = None
         self.current_map_type = next(iter(MAP_TYPES))
+        self.generation_in_progress = False
+        self.regeneration_pending = False
 
         self.colored_preview = QLabel()
         self.colored_preview.setFixedSize(MAP_SIZE, MAP_SIZE)
@@ -133,9 +135,14 @@ class MainWindow(QMainWindow):
             self.regenerate()
 
     def regenerate(self):
+        if self.generation_in_progress:
+            self.regeneration_pending = True
+            return
+
         preset = MAP_TYPES[self.current_map_type]
         layers = self.noise_panel.get_layers()
 
+        self.generation_in_progress = True
         self.regen_btn.setEnabled(False)
         self.regen_btn.setText("Generating...")
 
@@ -156,8 +163,13 @@ class MainWindow(QMainWindow):
         self.last_heightmap = heightmap
         self.preview.setPixmap(heightmap_to_pixmap(heightmap))
         self.update_colored_preview()
+        self.generation_in_progress = False
         self.regen_btn.setEnabled(True)
         self.regen_btn.setText("Regenerate")
+
+        if self.regeneration_pending:
+            self.regeneration_pending = False
+            self.regenerate()
 
     def update_colored_preview(self):
         if self.last_heightmap is None:
