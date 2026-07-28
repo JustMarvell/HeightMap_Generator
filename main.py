@@ -3,11 +3,11 @@ import random
 import numpy as np
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QPushButton,
-    QSpinBox, QDoubleSpinBox, QComboBox, QHBoxLayout, QVBoxLayout,
+    QSpinBox, QDoubleSpinBox, QComboBox, QCheckBox, QHBoxLayout, QVBoxLayout,
     QFileDialog
 )
 from PySide6.QtGui import QPixmap, QImage
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, QTimer, Signal
 from core.heightmap import build_heightmap
 from core.biomes import build_biomes, colorize
 from core.map_types import MAP_TYPES
@@ -15,6 +15,7 @@ from ui.noise_panel import NoisePanel
 from export.exporter import save_grayscale, save_rgb
 
 MAP_SIZE = 256
+AUTO_UPDATE_DELAY_MS = 400
 
 
 class HeightmapWorker(QObject):
@@ -67,6 +68,16 @@ class MainWindow(QMainWindow):
         self.regen_btn = QPushButton("Regenerate")
         self.regen_btn.clicked.connect(self.regenerate)
 
+        self.auto_update_box = QCheckBox("Auto-update")
+        self.auto_update_box.setChecked(False)
+
+        self.auto_update_timer = QTimer(self)
+        self.auto_update_timer.setSingleShot(True)
+        self.auto_update_timer.setInterval(AUTO_UPDATE_DELAY_MS)
+        self.auto_update_timer.timeout.connect(self.regenerate)
+
+        self.seed_box.valueChanged.connect(self.schedule_auto_regenerate)
+
         export_colored_btn = QPushButton("Export Colored Map")
         export_colored_btn.clicked.connect(self.export_colored)
         export_height_btn = QPushButton("Export Heightmap")
@@ -80,6 +91,7 @@ class MainWindow(QMainWindow):
         top_controls.addWidget(QLabel("Sea Level:"))
         top_controls.addWidget(self.sea_level_box)
         top_controls.addWidget(self.regen_btn)
+        top_controls.addWidget(self.auto_update_box)
 
         export_controls = QHBoxLayout()
         export_controls.addWidget(export_colored_btn)
@@ -97,6 +109,7 @@ class MainWindow(QMainWindow):
         left_widget.setLayout(left_panel)
 
         self.noise_panel = NoisePanel()
+        self.noise_panel.layers_changed.connect(self.schedule_auto_regenerate)
 
         main_layout = QHBoxLayout()
         main_layout.addWidget(left_widget)
@@ -108,6 +121,10 @@ class MainWindow(QMainWindow):
 
         self.load_map_type(self.current_map_type, regenerate=False)
         self.regenerate()
+
+    def schedule_auto_regenerate(self, *_):
+        if self.auto_update_box.isChecked():
+            self.auto_update_timer.start()  # restarts the countdown if already running
 
     def load_map_type(self, name: str, regenerate: bool = True):
         self.current_map_type = name
