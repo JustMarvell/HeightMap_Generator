@@ -15,7 +15,7 @@ from ui.noise_panel import NoisePanel
 from export.exporter import save_grayscale, save_rgb
 
 MAP_SIZE = 256
-AUTO_UPDATE_DELAY_MS = 400
+AUTO_UPDATE_DELAY_MS = 1000
 
 
 class HeightmapWorker(QObject):
