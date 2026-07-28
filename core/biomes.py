@@ -21,6 +21,7 @@ class Biome:
     color: tuple[int, int, int]
     min_height: float
     max_height: float
+    enabled: bool = True
 
 
 def build_biomes(sea_level: float) -> list[Biome]:
@@ -36,10 +37,34 @@ def build_biomes(sea_level: float) -> list[Biome]:
     return biomes
 
 
-def colorize(heightmap: np.ndarray, biomes: list[Biome]) -> np.ndarray:
+def colorize(heightmap: np.ndarray, biomes: list[Biome], blend: bool = False) -> np.ndarray:
+    enabled = [b for b in biomes if b.enabled]
     h, w = heightmap.shape
-    rgb = np.zeros((h, w, 3), dtype=np.uint8)
-    for biome in biomes:
-        mask = (heightmap >= biome.min_height) & (heightmap <= biome.max_height)
-        rgb[mask] = biome.color
-    return rgb
+    if not enabled:
+        return np.zeros((h, w, 3), dtype=np.uint8)
+
+    if not blend:
+        rgb = np.zeros((h, w, 3), dtype=np.uint8)
+        for biome in enabled:
+            mask = (heightmap >= biome.min_height) & (heightmap <= biome.max_height)
+            rgb[mask] = biome.color
+        return rgb
+
+    return _colorize_blended(heightmap, enabled)
+
+
+def _colorize_blended(heightmap: np.ndarray, enabled: list[Biome]) -> np.ndarray:
+    """Smooth gradient across biome bands using each band's midpoint as a color control point."""
+    ordered = sorted(enabled, key=lambda b: b.min_height)
+    control_x = [0.0] + [(b.min_height + b.max_height) / 2 for b in ordered] + [1.0]
+    control_x[0] = min(control_x[0], control_x[1])  # keep strictly non-decreasing for np.interp
+    control_x[-1] = max(control_x[-1], control_x[-2])
+
+    flat = heightmap.ravel()
+    channels = []
+    for c in range(3):
+        control_y = [ordered[0].color[c]] + [b.color[c] for b in ordered] + [ordered[-1].color[c]]
+        channels.append(np.interp(flat, control_x, control_y))
+
+    h, w = heightmap.shape
+    return np.stack(channels, axis=-1).reshape(h, w, 3).astype(np.uint8)
