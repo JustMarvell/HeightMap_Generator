@@ -67,9 +67,9 @@ class NoiseLayerWidget(QGroupBox):
         self.setLayout(form)
 
         for widget in (self.frequency, self.amplitude, self.persistence, self.lacunarity):
-            widget.valueChanged.connect(self.changed.emit)
-        self.octaves.valueChanged.connect(self.changed.emit)
-        self.blend_mode.currentTextChanged.connect(self.changed.emit)
+            widget.valueChanged.connect(lambda _: self.changed.emit())
+        self.octaves.valueChanged.connect(lambda _: self.changed.emit())
+        self.blend_mode.currentTextChanged.connect(lambda _: self.changed.emit())
 
     def to_layer(self) -> NoiseLayer:
         return NoiseLayer(
