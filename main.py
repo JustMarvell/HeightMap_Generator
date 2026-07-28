@@ -12,6 +12,7 @@ from core.heightmap import build_heightmap
 from core.biomes import build_biomes, colorize
 from core.map_types import MAP_TYPES
 from ui.noise_panel import NoisePanel
+from ui.biome_panel import BiomePanel
 from export.exporter import save_grayscale, save_rgb
 
 MAP_SIZE = 256
@@ -65,7 +66,10 @@ class MainWindow(QMainWindow):
         self.sea_level_box.setRange(0.0, 1.0)
         self.sea_level_box.setSingleStep(0.05)
         self.sea_level_box.setValue(0.4)
-        self.sea_level_box.valueChanged.connect(self.update_colored_preview)
+
+        self.blend_biomes_box = QCheckBox("Blend Biomes")
+        self.blend_biomes_box.setChecked(False)
+        self.blend_biomes_box.stateChanged.connect(self.update_colored_preview)
 
         self.regen_btn = QPushButton("Regenerate")
         self.regen_btn.clicked.connect(self.regenerate)
@@ -94,6 +98,7 @@ class MainWindow(QMainWindow):
         top_controls.addWidget(self.sea_level_box)
         top_controls.addWidget(self.regen_btn)
         top_controls.addWidget(self.auto_update_box)
+        top_controls.addWidget(self.blend_biomes_box)
 
         export_controls = QHBoxLayout()
         export_controls.addWidget(export_colored_btn)
@@ -113,9 +118,15 @@ class MainWindow(QMainWindow):
         self.noise_panel = NoisePanel()
         self.noise_panel.layers_changed.connect(self.schedule_auto_regenerate)
 
+        self.biome_panel = BiomePanel()
+        self.biome_panel.biomes_changed.connect(self.update_colored_preview)
+        self.biome_panel.reset_requested.connect(self.reset_biomes)
+        self.biome_panel.set_biomes(build_biomes(self.sea_level_box.value()))
+
         main_layout = QHBoxLayout()
         main_layout.addWidget(left_widget)
         main_layout.addWidget(self.noise_panel)
+        main_layout.addWidget(self.biome_panel)
 
         container = QWidget()
         container.setLayout(main_layout)
@@ -171,11 +182,14 @@ class MainWindow(QMainWindow):
             self.regeneration_pending = False
             self.regenerate()
 
+    def reset_biomes(self):
+        self.biome_panel.set_biomes(build_biomes(self.sea_level_box.value()))
+
     def update_colored_preview(self):
         if self.last_heightmap is None:
             return
-        biomes = build_biomes(self.sea_level_box.value())
-        self.last_rgb = colorize(self.last_heightmap, biomes)
+        biomes = self.biome_panel.get_biomes()
+        self.last_rgb = colorize(self.last_heightmap, biomes, blend=self.blend_biomes_box.isChecked())
         self.colored_preview.setPixmap(rgb_to_pixmap(self.last_rgb))
 
     def export_colored(self):
